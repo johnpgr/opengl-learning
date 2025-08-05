@@ -1,8 +1,11 @@
 -std=c++23
--Ithirdparty/glad/include
--Ithirdparty/SDL/include
 -Wall
 -Wextra
 -Wpedantic
 -Wno-c23-extensions
 -Wno-language-extension-token 
+-Ithirdparty/glad/include
+-I/usr/local/include
+-L/usr/local/lib -Wl,-rpath,/usr/local/lib -lSDL3
+-L/usr/local/lib \
+-L/opt/homebrew/lib

@@ -14,19 +14,12 @@ typedef float f32;
 typedef double f64;
 typedef size_t usize;
 
-constexpr u8 vertex_shader_source[] = {
-#embed "shaders/vertex.glsl"
-};
-
-constexpr u8 frag_shader_source[] = {
-#embed "shaders/frag.glsl"
-};
-
 struct Application {
     SDL_Window* window = nullptr;
-    SDL_GLContextState* gl_context = nullptr;
+    SDL_GLContext gl_context = nullptr;
     GLuint program;
     GLuint vao;
+    GLuint vbo;
 
     bool running = true;
     i32 window_width = 800;
@@ -39,7 +32,7 @@ struct Application {
         }
 
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 5);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
                             SDL_GL_CONTEXT_PROFILE_CORE);
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
@@ -73,27 +66,84 @@ struct Application {
         SDL_GL_SetSwapInterval(1);
         glViewport(0, 0, window_width, window_height);
 
-        // Compile shaders
+        constexpr u8 vertex_shader_source[] = {
+            #embed "shaders/vertex.glsl"
+        };
         const GLchar* vertex_source_ptr = (const GLchar*)vertex_shader_source;
+        const GLint vertex_source_len = sizeof(vertex_shader_source);
         const GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(vertex_shader, 1, &vertex_source_ptr, nullptr);
+        glShaderSource(vertex_shader, 1, &vertex_source_ptr, &vertex_source_len);
         glCompileShader(vertex_shader);
 
+        if(!checkShaderCompilation(vertex_shader, "VERTEX")) {
+            return false;
+        }
+
+        constexpr u8 frag_shader_source[] = {
+            #embed "shaders/frag.glsl"
+        };
         const GLchar* frag_source_ptr = (const GLchar*)frag_shader_source;
+        const GLint frag_source_len = sizeof(frag_shader_source);
         const GLuint frag_shader = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(frag_shader, 1, &frag_source_ptr, nullptr);
+        glShaderSource(frag_shader, 1, &frag_source_ptr, &frag_source_len);
         glCompileShader(frag_shader);
+
+        if(!checkShaderCompilation(frag_shader, "FRAGMENT")) {
+            return false;
+        }
 
         program = glCreateProgram();
         glAttachShader(program, vertex_shader);
         glAttachShader(program, frag_shader);
         glLinkProgram(program);
 
+        if(!checkProgramLinking()) {
+            return false;
+        }
+
         glDeleteShader(vertex_shader);
         glDeleteShader(frag_shader);
 
-        glCreateVertexArrays(1, &vao);
+        glGenVertexArrays(1, &vao);
         glBindVertexArray(vao);
+
+        GLenum error = glGetError();
+        if (error != GL_NO_ERROR) {
+            SDL_Log("OpenGL initialization error: %d", error);
+            return false;
+        }
+
+        SDL_Log("Shaders compiled and linked successfully");
+
+        return true;
+    }
+
+    bool checkShaderCompilation(GLuint shader, const char* type) {
+        GLint success;
+        GLchar log_msg[1024];
+
+        glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+
+        if (!success) {
+            glGetShaderInfoLog(shader, sizeof(log_msg), nullptr, log_msg);
+            SDL_Log("ERROR::SHADER_COMPILATION_ERROR of type: %s\n%s", type, log_msg);
+            return false;
+        }
+
+        return true;
+    }
+
+    bool checkProgramLinking() {
+        GLint success;
+        GLchar log_msg[1024];
+
+        glGetProgramiv(program, GL_LINK_STATUS, &success);
+
+        if (!success) {
+            glGetProgramInfoLog(program, sizeof(log_msg), nullptr, log_msg);
+            SDL_Log("ERROR::PROGRAM_LINKING_ERROR\n%s", log_msg);
+            return false;
+        }
 
         return true;
     }
@@ -125,6 +175,11 @@ struct Application {
         glClearBufferfv(GL_COLOR, 0, color);
         glUseProgram(program);
         glDrawArrays(GL_TRIANGLES, 0, 3);
+
+        GLenum error = glGetError();
+        if (error != GL_NO_ERROR) {
+            SDL_Log("OpenGL render error: %d at frame: %f", error, currentTime);
+        }
     }
 
     void run() {
