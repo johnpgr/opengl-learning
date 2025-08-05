@@ -14,14 +14,25 @@ typedef float f32;
 typedef double f64;
 typedef size_t usize;
 
+constexpr u8 vertex_shader_source[] = {
+#embed "shaders/vertex.glsl"
+};
+
+constexpr u8 frag_shader_source[] = {
+#embed "shaders/frag.glsl"
+};
+
 struct Application {
     SDL_Window* window = nullptr;
     SDL_GLContextState* gl_context = nullptr;
+    GLuint program;
+    GLuint vao;
+
     bool running = true;
     i32 window_width = 800;
     i32 window_height = 600;
 
-    bool init() {
+    bool initialize() {
         if (!SDL_Init(SDL_INIT_VIDEO)) {
             SDL_Log("Failed to initialize SDL: %s", SDL_GetError());
             return false;
@@ -34,8 +45,7 @@ struct Application {
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
         SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
-        window = SDL_CreateWindow("SDL3 OpenGL Application",
-                                  window_width,
+        window = SDL_CreateWindow("SDL3 OpenGL Application", window_width,
                                   window_height,
                                   SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
 
@@ -50,8 +60,6 @@ struct Application {
             return false;
         }
 
-        SDL_GL_SetSwapInterval(1);
-
         if (!gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress)) {
             SDL_Log("Failed to initialize GLAD");
             return false;
@@ -62,7 +70,30 @@ struct Application {
         SDL_Log("OpenGL Version: %s", version);
         SDL_Log("Renderer: %s", renderer);
 
+        SDL_GL_SetSwapInterval(1);
         glViewport(0, 0, window_width, window_height);
+
+        // Compile shaders
+        const GLchar* vertex_source_ptr = (const GLchar*)vertex_shader_source;
+        const GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(vertex_shader, 1, &vertex_source_ptr, nullptr);
+        glCompileShader(vertex_shader);
+
+        const GLchar* frag_source_ptr = (const GLchar*)frag_shader_source;
+        const GLuint frag_shader = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(frag_shader, 1, &frag_source_ptr, nullptr);
+        glCompileShader(frag_shader);
+
+        program = glCreateProgram();
+        glAttachShader(program, vertex_shader);
+        glAttachShader(program, frag_shader);
+        glLinkProgram(program);
+
+        glDeleteShader(vertex_shader);
+        glDeleteShader(frag_shader);
+
+        glCreateVertexArrays(1, &vao);
+        glBindVertexArray(vao);
 
         return true;
     }
@@ -93,6 +124,9 @@ struct Application {
                              (float)cos(currentTime) * 0.5f + 0.5f, 0.0f, 1.0f};
 
         glClearBufferfv(GL_COLOR, 0, color);
+
+        glUseProgram(program);
+        glDrawArrays(GL_POINTS, 0, 1);
     }
 
     void run() {
@@ -103,23 +137,28 @@ struct Application {
         }
     }
 
-    void cleanup() {
-        if (gl_context) {
-            SDL_GL_DestroyContext(gl_context);
-        }
+    void shutdown() {
+        glDeleteVertexArrays(1, &vao);
+        glDeleteProgram(program);
+
         if (window) {
             SDL_DestroyWindow(window);
         }
+
+        if (gl_context) {
+            SDL_GL_DestroyContext(gl_context);
+        }
+
         SDL_Quit();
     }
 
-    ~Application() { cleanup(); }
+    ~Application() { shutdown(); }
 };
 
 int main() {
     Application app;
 
-    if (!app.init()) {
+    if (!app.initialize()) {
         SDL_Log("Failed to initialize application");
         return -1;
     }
