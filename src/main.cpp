@@ -16,7 +16,7 @@ typedef size_t usize;
 
 struct Application {
     SDL_Window* window = nullptr;
-    SDL_GLContext gl_context = nullptr;
+    SDL_GLContextState* gl_context = nullptr;
     bool running = true;
     i32 window_width = 800;
     i32 window_height = 600;
@@ -34,7 +34,8 @@ struct Application {
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
         SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
-        window = SDL_CreateWindow("SDL3 OpenGL Application", window_width,
+        window = SDL_CreateWindow("SDL3 OpenGL Application",
+                                  window_width,
                                   window_height,
                                   SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
 
