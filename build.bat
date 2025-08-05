@@ -73,6 +73,11 @@ if errorlevel 1 (
 echo Compiling application...
 
 clang++ -std=c++23 ^
+    -Wall ^
+    -Wextra ^
+    -Wpedantic ^
+    -Wno-c23-extensions ^
+    -Wno-language-extension-token ^
     -I"%GLAD_INCLUDE_DIR%" ^
     -I"%SDL3_INCLUDE_DIR%" ^
     -L"%SDL3_LIB_DIR%\RelWithDebInfo" ^

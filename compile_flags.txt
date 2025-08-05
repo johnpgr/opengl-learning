@@ -1,7 +1,8 @@
 -std=c++23
 -Ithirdparty/glad/include
 -Ithirdparty/SDL/include
--DWIN32
 -Wall
 -Wextra
 -Wpedantic
+-Wno-c23-extensions
+-Wno-language-extension-token 
