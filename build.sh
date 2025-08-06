@@ -27,8 +27,7 @@ fi
 echo "Compiling GLAD..."
 clang -c -I"$GLAD_INCLUDE_DIR" \
     -o "$BUILD_DIR/glad.o" \
-    "$GLAD_SRC_DIR/glad.c" \
-    -MD
+    "$GLAD_SRC_DIR/glad.c"
 
 echo "Compiling application..."
 
@@ -40,19 +39,11 @@ clang++ -std=c++23 \
     -Wno-c23-extensions \
     -Wno-language-extension-token \
     -I"$GLAD_INCLUDE_DIR" \
-    $(pkg-config --cflags sdl3 2>/dev/null || echo "-I/usr/local/include -I/opt/homebrew/include") \
-    -L/usr/local/lib \
-    -L/opt/homebrew/lib \
+    $(pkg-config --cflags sdl3 2>/dev/null) \
     -o "$BUILD_DIR/main" \
     "$SRC_DIR/main.cpp" \
     "$BUILD_DIR/glad.o" \
-    $(pkg-config --libs sdl3 2>/dev/null || echo "-lSDL3") \
-    -framework OpenGL \
-    -framework Cocoa \
-    -framework IOKit \
-    -framework CoreVideo \
-    -framework CoreFoundation \
-    -MD
+    $(pkg-config --libs sdl3 2>/dev/null)
 
 echo "Build completed successfully!"
 echo "Executable: $BUILD_DIR/main"
