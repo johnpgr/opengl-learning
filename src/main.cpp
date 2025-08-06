@@ -1,6 +1,7 @@
 #include "glad/glad.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>
+#include <math.h>
 
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -58,54 +59,74 @@ struct Application {
             return false;
         }
 
-        auto version = (const char*)(glGetString(GL_VERSION));
-        auto renderer = (const char*)(glGetString(GL_RENDERER));
+        const auto version = (const char*)(glGetString(GL_VERSION));
+        const auto renderer = (const char*)(glGetString(GL_RENDERER));
         SDL_Log("OpenGL Version: %s", version);
         SDL_Log("Renderer: %s", renderer);
 
         SDL_GL_SetSwapInterval(1);
         glViewport(0, 0, window_width, window_height);
 
-        constexpr u8 vertex_shader_source[] = {
+        constexpr u8 vs_source[] = {
             #embed "shaders/vertex.glsl"
         };
-        const GLchar* vertex_source_ptr = (const GLchar*)vertex_shader_source;
-        const GLint vertex_source_len = sizeof(vertex_shader_source);
-        const GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(vertex_shader, 1, &vertex_source_ptr, &vertex_source_len);
-        glCompileShader(vertex_shader);
 
-        if(!checkShaderCompilation(vertex_shader, "VERTEX")) {
-            return false;
-        }
+        const auto vs = compileShader(
+            (const GLchar*)vs_source,
+            sizeof(vs_source),
+            GL_VERTEX_SHADER
+        );
 
-        constexpr u8 frag_shader_source[] = {
+        constexpr u8 fs_source[] = {
             #embed "shaders/frag.glsl"
         };
-        const GLchar* frag_source_ptr = (const GLchar*)frag_shader_source;
-        const GLint frag_source_len = sizeof(frag_shader_source);
-        const GLuint frag_shader = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(frag_shader, 1, &frag_source_ptr, &frag_source_len);
-        glCompileShader(frag_shader);
 
-        if(!checkShaderCompilation(frag_shader, "FRAGMENT")) {
-            return false;
-        }
+        const auto fs = compileShader(
+            (const GLchar*)fs_source,
+            sizeof(fs_source),
+            GL_FRAGMENT_SHADER
+        );
+
+        constexpr u8 tcs_source[] = {
+            #embed "shaders/tessellation_control.glsl"
+        };
+
+        const auto tcs = compileShader(
+            (const GLchar*)tcs_source,
+            sizeof(tcs_source),
+            GL_TESS_CONTROL_SHADER
+        );
+
+        constexpr u8 tes_source[] = {
+            #embed "shaders/tessellation_evaluation.glsl"
+        };
+
+        const auto tes = compileShader(
+            (const GLchar*)tes_source,
+            sizeof(tes_source),
+            GL_TESS_EVALUATION_SHADER
+        );
 
         program = glCreateProgram();
-        glAttachShader(program, vertex_shader);
-        glAttachShader(program, frag_shader);
+        glAttachShader(program, vs);
+        glAttachShader(program, tcs);
+        glAttachShader(program, tes);
+        glAttachShader(program, fs);
         glLinkProgram(program);
 
-        if(!checkProgramLinking()) {
+        if (!checkProgramLinking()) {
             return false;
         }
 
-        glDeleteShader(vertex_shader);
-        glDeleteShader(frag_shader);
+        glDeleteShader(tcs);
+        glDeleteShader(tes);
+        glDeleteShader(vs);
+        glDeleteShader(fs);
 
         glGenVertexArrays(1, &vao);
         glBindVertexArray(vao);
+
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
         GLenum error = glGetError();
         if (error != GL_NO_ERROR) {
@@ -118,6 +139,40 @@ struct Application {
         return true;
     }
 
+    GLuint compileShader(
+        const GLchar* source_code,
+        const GLint source_code_len,
+        const GLenum shader_type
+    ) {
+        const auto shader = glCreateShader(shader_type);
+        glShaderSource(shader, 1, &source_code, &source_code_len);
+        glCompileShader(shader);
+
+        bool success = false;
+
+        switch (shader_type) {
+        case GL_VERTEX_SHADER:
+            success = checkShaderCompilation(shader, "VERTEX");
+            break;
+        case GL_TESS_CONTROL_SHADER:
+            success = checkShaderCompilation(shader, "TESSELLATION_CONTROL");
+            break;
+        case GL_TESS_EVALUATION_SHADER:
+            success = checkShaderCompilation(shader, "TESSELLATION_EVALUATION");
+            break;
+        case GL_FRAGMENT_SHADER:
+            success = checkShaderCompilation(shader, "FRAGMENT");
+            break;
+        default:
+            break;
+        }
+
+        if (!success)
+            return 0;
+
+        return shader;
+    }
+
     bool checkShaderCompilation(GLuint shader, const char* type) {
         GLint success;
         GLchar log_msg[1024];
@@ -126,7 +181,8 @@ struct Application {
 
         if (!success) {
             glGetShaderInfoLog(shader, sizeof(log_msg), nullptr, log_msg);
-            SDL_Log("ERROR::SHADER_COMPILATION_ERROR of type: %s\n%s", type, log_msg);
+            SDL_Log("ERROR::SHADER_COMPILATION_ERROR of type: %s\n%s", type,
+                    log_msg);
             return false;
         }
 
@@ -170,11 +226,11 @@ struct Application {
     }
 
     void render(f64 currentTime) {
-        const GLfloat color[] = { 0.0f, 0.2f, 0.0f, 1.0f };
-
+        const f32 color[] = {0.0, 0.0, 0.0, 0.0};
         glClearBufferfv(GL_COLOR, 0, color);
+
         glUseProgram(program);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        glDrawArrays(GL_PATCHES, 0, 3);
 
         GLenum error = glGetError();
         if (error != GL_NO_ERROR) {

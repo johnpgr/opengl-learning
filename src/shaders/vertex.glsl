@@ -7,4 +7,3 @@ void main(void) {
 
     gl_Position = vertices[gl_VertexID];
 }
-
