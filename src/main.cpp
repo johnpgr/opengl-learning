@@ -15,6 +15,17 @@ typedef float f32;
 typedef double f64;
 typedef size_t usize;
 
+const char* getShaderTypeName(GLenum type) {
+    switch(type) {
+        case GL_VERTEX_SHADER: return "VERTEX";
+        case GL_FRAGMENT_SHADER: return "FRAGMENT";
+        case GL_GEOMETRY_SHADER: return "GEOMETRY";
+        case GL_TESS_CONTROL_SHADER: return "TESSELLATION_CONTROL";
+        case GL_TESS_EVALUATION_SHADER: return "TESSELLATION_EVALUATION";
+        default: return nullptr;
+    }
+}
+
 struct Application {
     SDL_Window* window = nullptr;
     SDL_GLContext gl_context = nullptr;
@@ -34,14 +45,19 @@ struct Application {
 
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
-                            SDL_GL_CONTEXT_PROFILE_CORE);
+        SDL_GL_SetAttribute(
+            SDL_GL_CONTEXT_PROFILE_MASK,
+            SDL_GL_CONTEXT_PROFILE_CORE
+        );
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
         SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
-        window = SDL_CreateWindow("SDL3 OpenGL Application", window_width,
-                                  window_height,
-                                  SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+        window = SDL_CreateWindow(
+            "SDL3 OpenGL Application",
+            window_width,
+            window_height,
+            SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE
+        );
 
         if (!window) {
             SDL_Log("Failed to create window: %s", SDL_GetError());
@@ -77,16 +93,6 @@ struct Application {
             GL_VERTEX_SHADER
         );
 
-        constexpr u8 fs_source[] = {
-            #embed "shaders/frag.glsl"
-        };
-
-        const auto fs = compileShader(
-            (const GLchar*)fs_source,
-            sizeof(fs_source),
-            GL_FRAGMENT_SHADER
-        );
-
         constexpr u8 tcs_source[] = {
             #embed "shaders/tessellation_control.glsl"
         };
@@ -107,20 +113,44 @@ struct Application {
             GL_TESS_EVALUATION_SHADER
         );
 
+        constexpr u8 gs_source[] = {
+            #embed "shaders/geometry.glsl"
+        };
+
+        const auto gs = compileShader(
+            (const GLchar*)gs_source,
+            sizeof(gs_source),
+            GL_GEOMETRY_SHADER
+        );
+
+        constexpr u8 fs_source[] = {
+            #embed "shaders/fragment.glsl"
+        };
+
+        const auto fs = compileShader(
+            (const GLchar*)fs_source,
+            sizeof(fs_source),
+            GL_FRAGMENT_SHADER
+        );
+
         program = glCreateProgram();
+
         glAttachShader(program, vs);
         glAttachShader(program, tcs);
         glAttachShader(program, tes);
+        glAttachShader(program, gs);
         glAttachShader(program, fs);
+
         glLinkProgram(program);
 
         if (!checkProgramLinking()) {
             return false;
         }
 
+        glDeleteShader(vs);
         glDeleteShader(tcs);
         glDeleteShader(tes);
-        glDeleteShader(vs);
+        glDeleteShader(gs);
         glDeleteShader(fs);
 
         glGenVertexArrays(1, &vao);
@@ -140,35 +170,19 @@ struct Application {
     }
 
     GLuint compileShader(
-        const GLchar* source_code,
-        const GLint source_code_len,
+        const GLchar* code,
+        const GLint code_len,
         const GLenum shader_type
     ) {
         const auto shader = glCreateShader(shader_type);
-        glShaderSource(shader, 1, &source_code, &source_code_len);
+        glShaderSource(shader, 1, &code, &code_len);
         glCompileShader(shader);
+        
+        const auto type_name = getShaderTypeName(shader_type);
 
-        bool success = false;
-
-        switch (shader_type) {
-        case GL_VERTEX_SHADER:
-            success = checkShaderCompilation(shader, "VERTEX");
-            break;
-        case GL_TESS_CONTROL_SHADER:
-            success = checkShaderCompilation(shader, "TESSELLATION_CONTROL");
-            break;
-        case GL_TESS_EVALUATION_SHADER:
-            success = checkShaderCompilation(shader, "TESSELLATION_EVALUATION");
-            break;
-        case GL_FRAGMENT_SHADER:
-            success = checkShaderCompilation(shader, "FRAGMENT");
-            break;
-        default:
-            break;
-        }
-
-        if (!success)
+        if (!type_name || !checkShaderCompilation(shader, type_name)) {
             return 0;
+        }
 
         return shader;
     }
@@ -230,6 +244,7 @@ struct Application {
         glClearBufferfv(GL_COLOR, 0, color);
 
         glUseProgram(program);
+        glPointSize(5.0);
         glDrawArrays(GL_PATCHES, 0, 3);
 
         GLenum error = glGetError();
