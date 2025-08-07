@@ -148,9 +148,9 @@ struct Application {
         }
 
         glDeleteShader(vs);
-        glDeleteShader(tcs);
-        glDeleteShader(tes);
-        glDeleteShader(gs);
+        // glDeleteShader(tcs);
+        // glDeleteShader(tes);
+        // glDeleteShader(gs);
         glDeleteShader(fs);
 
         glGenVertexArrays(1, &vao);
@@ -244,7 +244,17 @@ struct Application {
         glClearBufferfv(GL_COLOR, 0, color);
 
         glUseProgram(program);
+        
         // glPointSize(5.0);
+        
+        GLfloat offset[] = { 
+            (float)sin(currentTime) * 0.5f,
+            (float)cos(currentTime) * 0.6f,
+            0.0f,
+            0.0f
+        };
+        glVertexAttrib4fv(0, offset);
+
         glDrawArrays(GL_TRIANGLES, 0, 3);
 
         GLenum error = glGetError();
