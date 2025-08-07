@@ -93,35 +93,35 @@ struct Application {
             GL_VERTEX_SHADER
         );
 
-        constexpr u8 tcs_source[] = {
-            #embed "shaders/tessellation_control.glsl"
-        };
-
-        const auto tcs = compileShader(
-            (const GLchar*)tcs_source,
-            sizeof(tcs_source),
-            GL_TESS_CONTROL_SHADER
-        );
-
-        constexpr u8 tes_source[] = {
-            #embed "shaders/tessellation_evaluation.glsl"
-        };
-
-        const auto tes = compileShader(
-            (const GLchar*)tes_source,
-            sizeof(tes_source),
-            GL_TESS_EVALUATION_SHADER
-        );
-
-        constexpr u8 gs_source[] = {
-            #embed "shaders/geometry.glsl"
-        };
-
-        const auto gs = compileShader(
-            (const GLchar*)gs_source,
-            sizeof(gs_source),
-            GL_GEOMETRY_SHADER
-        );
+        // constexpr u8 tcs_source[] = {
+        //     #embed "shaders/tessellation_control.glsl"
+        // };
+        //
+        // const auto tcs = compileShader(
+        //     (const GLchar*)tcs_source,
+        //     sizeof(tcs_source),
+        //     GL_TESS_CONTROL_SHADER
+        // );
+        //
+        // constexpr u8 tes_source[] = {
+        //     #embed "shaders/tessellation_evaluation.glsl"
+        // };
+        //
+        // const auto tes = compileShader(
+        //     (const GLchar*)tes_source,
+        //     sizeof(tes_source),
+        //     GL_TESS_EVALUATION_SHADER
+        // );
+        //
+        // constexpr u8 gs_source[] = {
+        //     #embed "shaders/geometry.glsl"
+        // };
+        //
+        // const auto gs = compileShader(
+        //     (const GLchar*)gs_source,
+        //     sizeof(gs_source),
+        //     GL_GEOMETRY_SHADER
+        // );
 
         constexpr u8 fs_source[] = {
             #embed "shaders/fragment.glsl"
@@ -136,9 +136,9 @@ struct Application {
         program = glCreateProgram();
 
         glAttachShader(program, vs);
-        glAttachShader(program, tcs);
-        glAttachShader(program, tes);
-        glAttachShader(program, gs);
+        // glAttachShader(program, tcs);
+        // glAttachShader(program, tes);
+        // glAttachShader(program, gs);
         glAttachShader(program, fs);
 
         glLinkProgram(program);
@@ -156,7 +156,7 @@ struct Application {
         glGenVertexArrays(1, &vao);
         glBindVertexArray(vao);
 
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
         GLenum error = glGetError();
         if (error != GL_NO_ERROR) {
@@ -244,8 +244,8 @@ struct Application {
         glClearBufferfv(GL_COLOR, 0, color);
 
         glUseProgram(program);
-        glPointSize(5.0);
-        glDrawArrays(GL_PATCHES, 0, 3);
+        // glPointSize(5.0);
+        glDrawArrays(GL_TRIANGLES, 0, 3);
 
         GLenum error = glGetError();
         if (error != GL_NO_ERROR) {
