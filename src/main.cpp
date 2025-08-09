@@ -1,6 +1,7 @@
 #include "glad/glad.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>
+#include <math.h>
 
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -14,19 +15,23 @@ typedef float f32;
 typedef double f64;
 typedef size_t usize;
 
-constexpr u8 vertex_shader_source[] = {
-#embed "shaders/vertex.glsl"
-};
-
-constexpr u8 frag_shader_source[] = {
-#embed "shaders/frag.glsl"
-};
+const char* getShaderTypeName(GLenum type) {
+    switch(type) {
+        case GL_VERTEX_SHADER: return "VERTEX";
+        case GL_FRAGMENT_SHADER: return "FRAGMENT";
+        case GL_GEOMETRY_SHADER: return "GEOMETRY";
+        case GL_TESS_CONTROL_SHADER: return "TESSELLATION_CONTROL";
+        case GL_TESS_EVALUATION_SHADER: return "TESSELLATION_EVALUATION";
+        default: return nullptr;
+    }
+}
 
 struct Application {
     SDL_Window* window = nullptr;
-    SDL_GLContextState* gl_context = nullptr;
+    SDL_GLContext gl_context = nullptr;
     GLuint program;
     GLuint vao;
+    GLuint vbo;
 
     bool running = true;
     i32 window_width = 800;
@@ -40,14 +45,19 @@ struct Application {
 
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 5);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
-                            SDL_GL_CONTEXT_PROFILE_CORE);
+        SDL_GL_SetAttribute(
+            SDL_GL_CONTEXT_PROFILE_MASK,
+            SDL_GL_CONTEXT_PROFILE_CORE
+        );
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
         SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
-        window = SDL_CreateWindow("SDL3 OpenGL Application", window_width,
-                                  window_height,
-                                  SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+        window = SDL_CreateWindow(
+            "SDL3 OpenGL Application",
+            window_width,
+            window_height,
+            SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE
+        );
 
         if (!window) {
             SDL_Log("Failed to create window: %s", SDL_GetError());
@@ -65,35 +75,145 @@ struct Application {
             return false;
         }
 
-        auto version = (const char*)(glGetString(GL_VERSION));
-        auto renderer = (const char*)(glGetString(GL_RENDERER));
+        const auto version = (const char*)(glGetString(GL_VERSION));
+        const auto renderer = (const char*)(glGetString(GL_RENDERER));
         SDL_Log("OpenGL Version: %s", version);
         SDL_Log("Renderer: %s", renderer);
 
         SDL_GL_SetSwapInterval(1);
         glViewport(0, 0, window_width, window_height);
 
-        // Compile shaders
-        const GLchar* vertex_source_ptr = (const GLchar*)vertex_shader_source;
-        const GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(vertex_shader, 1, &vertex_source_ptr, nullptr);
-        glCompileShader(vertex_shader);
+        constexpr u8 vs_source[] = {
+            #embed "shaders/vertex.glsl"
+        };
 
-        const GLchar* frag_source_ptr = (const GLchar*)frag_shader_source;
-        const GLuint frag_shader = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(frag_shader, 1, &frag_source_ptr, nullptr);
-        glCompileShader(frag_shader);
+        const auto vs = compileShader(
+            (const GLchar*)vs_source,
+            sizeof(vs_source),
+            GL_VERTEX_SHADER
+        );
+
+        // constexpr u8 tcs_source[] = {
+        //     #embed "shaders/tessellation_control.glsl"
+        // };
+        //
+        // const auto tcs = compileShader(
+        //     (const GLchar*)tcs_source,
+        //     sizeof(tcs_source),
+        //     GL_TESS_CONTROL_SHADER
+        // );
+        //
+        // constexpr u8 tes_source[] = {
+        //     #embed "shaders/tessellation_evaluation.glsl"
+        // };
+        //
+        // const auto tes = compileShader(
+        //     (const GLchar*)tes_source,
+        //     sizeof(tes_source),
+        //     GL_TESS_EVALUATION_SHADER
+        // );
+        //
+        // constexpr u8 gs_source[] = {
+        //     #embed "shaders/geometry.glsl"
+        // };
+        //
+        // const auto gs = compileShader(
+        //     (const GLchar*)gs_source,
+        //     sizeof(gs_source),
+        //     GL_GEOMETRY_SHADER
+        // );
+
+        constexpr u8 fs_source[] = {
+            #embed "shaders/fragment.glsl"
+        };
+
+        const auto fs = compileShader(
+            (const GLchar*)fs_source,
+            sizeof(fs_source),
+            GL_FRAGMENT_SHADER
+        );
 
         program = glCreateProgram();
-        glAttachShader(program, vertex_shader);
-        glAttachShader(program, frag_shader);
+
+        glAttachShader(program, vs);
+        // glAttachShader(program, tcs);
+        // glAttachShader(program, tes);
+        // glAttachShader(program, gs);
+        glAttachShader(program, fs);
+
         glLinkProgram(program);
 
-        glDeleteShader(vertex_shader);
-        glDeleteShader(frag_shader);
+        if (!checkProgramLinking()) {
+            return false;
+        }
+
+        glDeleteShader(vs);
+        // glDeleteShader(tcs);
+        // glDeleteShader(tes);
+        // glDeleteShader(gs);
+        glDeleteShader(fs);
 
         glCreateVertexArrays(1, &vao);
         glBindVertexArray(vao);
+
+        // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+        GLenum error = glGetError();
+        if (error != GL_NO_ERROR) {
+            SDL_Log("OpenGL initialization error: %d", error);
+            return false;
+        }
+
+        SDL_Log("Shaders compiled and linked successfully");
+
+        return true;
+    }
+
+    GLuint compileShader(
+        const GLchar* code,
+        const GLint code_len,
+        const GLenum shader_type
+    ) {
+        const auto shader = glCreateShader(shader_type);
+        glShaderSource(shader, 1, &code, &code_len);
+        glCompileShader(shader);
+        
+        const auto type_name = getShaderTypeName(shader_type);
+
+        if (!type_name || !checkShaderCompilation(shader, type_name)) {
+            return 0;
+        }
+
+        return shader;
+    }
+
+    bool checkShaderCompilation(GLuint shader, const char* type) {
+        GLint success;
+        GLchar log_msg[1024];
+
+        glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+
+        if (!success) {
+            glGetShaderInfoLog(shader, sizeof(log_msg), nullptr, log_msg);
+            SDL_Log("ERROR::SHADER_COMPILATION_ERROR of type: %s\n%s", type,
+                    log_msg);
+            return false;
+        }
+
+        return true;
+    }
+
+    bool checkProgramLinking() {
+        GLint success;
+        GLchar log_msg[1024];
+
+        glGetProgramiv(program, GL_LINK_STATUS, &success);
+
+        if (!success) {
+            glGetProgramInfoLog(program, sizeof(log_msg), nullptr, log_msg);
+            SDL_Log("ERROR::PROGRAM_LINKING_ERROR\n%s", log_msg);
+            return false;
+        }
 
         return true;
     }
@@ -120,11 +240,27 @@ struct Application {
     }
 
     void render(f64 currentTime) {
-        const GLfloat color[] = { 0.0f, 0.2f, 0.0f, 1.0f };
-
+        const f32 color[] = { 0.0f, 0.2f, 0.0f, 1.0f };
         glClearBufferfv(GL_COLOR, 0, color);
+
         glUseProgram(program);
+
+        // glPointSize(5.0);
+        
+        GLfloat offset[] = { 
+            (float)sin(currentTime) * 0.5f,
+            (float)cos(currentTime) * 0.6f,
+            0.0f,
+            0.0f
+        };
+        glVertexAttrib4fv(0, offset);
+
         glDrawArrays(GL_TRIANGLES, 0, 3);
+
+        GLenum error = glGetError();
+        if (error != GL_NO_ERROR) {
+            SDL_Log("OpenGL render error: %d at frame: %f", error, currentTime);
+        }
     }
 
     void run() {
